@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,9 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MangaCard } from "./components/manga-card";
 import type { MangaChapter } from "./types/manga";
 
-const ITEMS_PER_PAGE = 30;
-
-function HomePageContent() {
+function HomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentPage = Number(searchParams.get("page")) || 1;
@@ -26,6 +25,7 @@ function HomePageContent() {
   const [loading, setLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(10);
   const [error, setError] = useState<string | null>(null);
+  const itemsPerPage = 30;
 
   useEffect(() => {
     const fetchManga = async () => {
@@ -33,8 +33,9 @@ function HomePageContent() {
       setError(null);
 
       try {
+        console.log("Fetching hot manga data...");
         const hotResponse = await fetch(
-          `/api/manga/chapter/?page=${currentPage}&order=hot&limit=${ITEMS_PER_PAGE}`
+          `/api/manga/chapter/?page=${currentPage}&order=hot&limit=${itemsPerPage}`
         );
 
         if (!hotResponse.ok) {
@@ -42,20 +43,25 @@ function HomePageContent() {
         }
 
         const hotData = await hotResponse.json();
+        console.log("Hot manga data received:", hotData.length || "object");
+
         let mangaList: MangaChapter[] = [];
 
         if (Array.isArray(hotData)) {
           mangaList = hotData;
         } else if (hotData.chapters && Array.isArray(hotData.chapters)) {
           mangaList = hotData.chapters;
+
           if (hotData.pagination) {
-            setTotalPages(Math.ceil(hotData.pagination.total / ITEMS_PER_PAGE));
+            const totalItems = hotData.pagination.total;
+            setTotalPages(Math.ceil(totalItems / itemsPerPage));
           }
         } else {
           mangaList = [hotData];
         }
 
-        setHotManga(mangaList.slice(0, ITEMS_PER_PAGE));
+        const limitedData = mangaList.slice(0, itemsPerPage);
+        setHotManga(limitedData);
       } catch (error) {
         console.error("Error fetching manga:", error);
         setError("Failed to load manga data. Please try again later.");
@@ -73,13 +79,15 @@ function HomePageContent() {
 
   const renderPaginationItems = () => {
     const items = [];
-
     items.push(
       <PaginationItem key="first">
         <PaginationLink
-          href="/?page=1"
+          href={`/?page=1`}
           isActive={currentPage === 1}
-          onClick={(e) => { e.preventDefault(); handlePageChange(1); }}
+          onClick={(e) => {
+            e.preventDefault();
+            handlePageChange(1);
+          }}
         >
           1
         </PaginationLink>
@@ -100,12 +108,16 @@ function HomePageContent() {
       i++
     ) {
       if (i === 1 || i === totalPages) continue;
+
       items.push(
         <PaginationItem key={i}>
           <PaginationLink
             href={`/?page=${i}`}
             isActive={currentPage === i}
-            onClick={(e) => { e.preventDefault(); handlePageChange(i); }}
+            onClick={(e) => {
+              e.preventDefault();
+              handlePageChange(i);
+            }}
           >
             {i}
           </PaginationLink>
@@ -127,7 +139,10 @@ function HomePageContent() {
           <PaginationLink
             href={`/?page=${totalPages}`}
             isActive={currentPage === totalPages}
-            onClick={(e) => { e.preventDefault(); handlePageChange(totalPages); }}
+            onClick={(e) => {
+              e.preventDefault();
+              handlePageChange(totalPages);
+            }}
           >
             {totalPages}
           </PaginationLink>
@@ -147,17 +162,21 @@ function HomePageContent() {
           {error ? (
             <div className="p-8 text-center">
               <p className="mb-4 text-destructive">{error}</p>
-              <Button onClick={() => window.location.reload()}>Try Again</Button>
+              <Button onClick={() => window.location.reload()}>
+                Try Again
+              </Button>
             </div>
           ) : loading ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {Array(20).fill(0).map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-[240px] w-full rounded-md" />
-                  <Skeleton className="w-full h-4" />
-                  <Skeleton className="w-2/3 h-4" />
-                </div>
-              ))}
+              {Array(itemsPerPage > 20 ? 20 : itemsPerPage)
+                .fill(0)
+                .map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-[240px] w-full rounded-md" />
+                    <Skeleton className="w-full h-4" />
+                    <Skeleton className="w-2/3 h-4" />
+                  </div>
+                ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -174,10 +193,14 @@ function HomePageContent() {
                   href={`/?page=${Math.max(1, currentPage - 1)}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    if (currentPage > 1) handlePageChange(currentPage - 1);
+                    if (currentPage > 1) {
+                      handlePageChange(currentPage - 1);
+                    }
                   }}
                   aria-disabled={currentPage <= 1}
-                  className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
+                  className={
+                    currentPage <= 1 ? "pointer-events-none opacity-50" : ""
+                  }
                 />
               </PaginationItem>
 
@@ -188,10 +211,16 @@ function HomePageContent() {
                   href={`/?page=${Math.min(totalPages, currentPage + 1)}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    if (currentPage < totalPages) handlePageChange(currentPage + 1);
+                    if (currentPage < totalPages) {
+                      handlePageChange(currentPage + 1);
+                    }
                   }}
                   aria-disabled={currentPage >= totalPages}
-                  className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
+                  className={
+                    currentPage >= totalPages
+                      ? "pointer-events-none opacity-50"
+                      : ""
+                  }
                 />
               </PaginationItem>
             </PaginationContent>
@@ -210,27 +239,8 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-background">
-          <main className="container px-4 py-6 mx-auto">
-            <div className="mb-6">
-              <div className="h-8 w-48 mb-4 rounded-md bg-muted animate-pulse" />
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {Array(20).fill(0).map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <Skeleton className="h-[240px] w-full rounded-md" />
-                    <Skeleton className="w-full h-4" />
-                    <Skeleton className="w-2/3 h-4" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </main>
-        </div>
-      }
-    >
-      <HomePageContent />
+    <Suspense fallback={null}>
+      <HomePageInner />
     </Suspense>
   );
 }
