@@ -229,7 +229,7 @@ export default function HomePage() {
 
       <footer className="py-6 mt-12 border-t">
         <div className="container px-4 mx-auto text-sm text-center text-muted-foreground">
-          <p>© {new Date().getFullYear()} Piginime. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} MangaLibs. All rights reserved.</p>
         </div>
       </footer>
     </div>
