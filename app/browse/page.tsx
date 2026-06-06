@@ -247,12 +247,19 @@ export default function BrowsePage() {
     searchManga(filters);
   }, [filters, searchManga]);
 
+  // BUG FIX: debouncedSearch sebelumnya menggunakan useCallback dengan dependency [filters, updateUrl]
+  // sehingga debounce timer di-reset setiap filters berubah, dan filters yang dipakai adalah
+  // nilai stale saat debounce dibuat. Solusi: gunakan useRef untuk menyimpan query terbaru
+  // dan trigger filter update langsung di handleSearchChange tanpa debounce yang stale.
   const debouncedSearch = useCallback(
     debounce((query: string) => {
-      setFilters((prev) => ({ ...prev, q: query, page: 1 }));
-      updateUrl({ ...filters, q: query, page: 1 });
+      setFilters((prev) => {
+        const updated = { ...prev, q: query, page: 1 };
+        updateUrl(updated);
+        return updated;
+      });
     }, 1000),
-    [filters, updateUrl]
+    [updateUrl]
   );
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

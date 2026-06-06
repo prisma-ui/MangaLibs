@@ -1,6 +1,5 @@
 "use client";
 
-import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MangaCard } from "./components/manga-card";
 import type { MangaChapter } from "./types/manga";
 
-function HomePageInner() {
+export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentPage = Number(searchParams.get("page")) || 1;
@@ -234,13 +233,5 @@ function HomePageInner() {
         </div>
       </footer>
     </div>
-  );
-}
-
-export default function HomePage() {
-  return (
-    <Suspense fallback={null}>
-      <HomePageInner />
-    </Suspense>
   );
 }

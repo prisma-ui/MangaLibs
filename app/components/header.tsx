@@ -41,18 +41,11 @@ export default function Header() {
     }
   }, []);
 
-  const fetchSearchResultsRef = useRef(fetchSearchResults);
-  useEffect(() => {
-    fetchSearchResultsRef.current = fetchSearchResults;
-  }, [fetchSearchResults]);
-
   const debouncedSearch = useCallback(
     debounce((query: string) => {
-      fetchSearchResultsRef.current(query);
+      fetchSearchResults(query);
     }, 500),
-    // debounce instance dibuat sekali; ref selalu up-to-date
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [fetchSearchResults]
   );
 
   useEffect(() => {

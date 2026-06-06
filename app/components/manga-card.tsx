@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Book, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { MangaChapter } from "@/app/types/manga";
@@ -83,7 +82,7 @@ export function MangaCard({ manga }: MangaCardProps) {
 
   return (
     <Card className="overflow-hidden h-full rounded-lg border-0 bg-transparent">
-      <Link
+      <a
         href={`/comic/${manga.md_comics?.slug || manga.id}`}
         className="block h-full relative group"
       >
@@ -138,7 +137,7 @@ export function MangaCard({ manga }: MangaCardProps) {
             </span>
           </div>
         </div>
-      </Link>
+      </a>
     </Card>
   );
 }

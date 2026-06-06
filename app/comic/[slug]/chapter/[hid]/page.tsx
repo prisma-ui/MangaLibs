@@ -1,4 +1,3 @@
-//comic/[slug]/chapter/[hid]/page.tsx
 "use client";
 
 import type React from "react";
@@ -42,7 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Chapter, ChapterImage } from "@/app/types/mangaInfo";
+import type { Chapter, ChapterImage, ChapterImagesResponse } from "@/app/types/mangaInfo";
 
 interface Comment {
   id: string;
@@ -75,7 +74,6 @@ export default function ChapterReader() {
   const [showComments, setShowComments] = useState(false);
   const topRef = useRef<HTMLDivElement>(null);
   const commentsRef = useRef<HTMLDivElement>(null);
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
   const [allChapters, setAllChapters] = useState<Chapter[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [availableGroups, setAvailableGroups] = useState<string[]>([]);
@@ -87,34 +85,42 @@ export default function ChapterReader() {
       setError(null);
 
       try {
-        // 1. Fetch the chapter images
+        // 1. Fetch chapter images
         const chapterImagesResponse = await fetch(
           `/api/manga/chapter/${hid}/get_images`
         );
         if (!chapterImagesResponse.ok)
           throw new Error(`Failed to fetch chapter images`);
-        const imagesData = await chapterImagesResponse.json();
-        setChapterImages(imagesData);
 
-        // 2. Fetch the current chapter info to get group details
+        // BUG FIX #1: API mengembalikan objek { images: [...] }, bukan array langsung
+        // Sebelumnya: setChapterImages(imagesData) — crash jika imagesData adalah objek
+        const imagesData: ChapterImagesResponse = await chapterImagesResponse.json();
+        setChapterImages(
+          Array.isArray(imagesData)
+            ? imagesData
+            : imagesData.images ?? []
+        );
+
+        // 2. Fetch current chapter info
         const currentChapterResponse = await fetch(`/api/manga/chapter/${hid}`);
         if (!currentChapterResponse.ok)
           throw new Error(`Failed to fetch current chapter info`);
         const currentChapterData = await currentChapterResponse.json();
-        const currentChapter = currentChapterData.chapter;
+        const currentChap: Chapter = currentChapterData.chapter;
 
-        const currentGroups = currentChapter.group_name || [];
+        const currentGroups = currentChap.group_name ?? [];
         const preferredGroup =
           currentGroups.length > 0 ? currentGroups[0] : null;
-        setChapterTitle(`Chapter ${currentChapter.chap}`);
+        setChapterTitle(`Chapter ${currentChap.chap}`);
+        setCurrentChapter(currentChap);
 
-        // 3. Fetch the manga info to get its hid
+        // 3. Fetch manga info
         const mangaResponse = await fetch(`/api/manga/comic/${slug}`);
         if (!mangaResponse.ok) throw new Error(`Failed to fetch manga info`);
         const mangaData = await mangaResponse.json();
         const mangaHid = mangaData.comic.hid;
 
-        // 4. Fetch all chapters to have complete data for navigation
+        // 4. Fetch all chapters for navigation
         const chaptersResponse = await fetch(
           `/api/manga/comic/${mangaHid}/chapters?limit=100&chap-order=0&lang=en`
         );
@@ -124,13 +130,10 @@ export default function ChapterReader() {
         const chaptersData = await chaptersResponse.json();
         const chapters: Chapter[] = chaptersData.chapters;
         setAllChapters(chapters);
-        setCurrentChapter(currentChapter);
 
         const groups = new Set<string>();
         chapters.forEach((chapter) => {
-          if (chapter.group_name && chapter.group_name.length > 0) {
-            chapter.group_name.forEach((group) => groups.add(group));
-          }
+          chapter.group_name?.forEach((group) => groups.add(group));
         });
         setAvailableGroups(Array.from(groups));
 
@@ -150,79 +153,49 @@ export default function ChapterReader() {
           throw new Error("Current chapter not found in chapters list");
         }
 
-        let prevChapterIndex = currentIndex - 1;
-        while (prevChapterIndex >= 0) {
-          const prevChapterCandidate = sortedChapters[prevChapterIndex];
+        // BUG FIX #2: Logika prev/next chapter disederhanakan dan diperbaiki.
+        // Versi lama: loop fallback yang salah — ketika loop habis dengan
+        // prevChapterIndex < 0 tapi currentIndex > 0, fallback ke currentIndex-1
+        // sudah di-set tapi bisa di-overwrite oleh kondisi `currentIndex === 0`.
+        // Versi baru: satu pass yang jelas, prioritaskan grup yang sama, fallback ke chapter terdekat.
 
+        // Cari prev chapter
+        let foundPrev: { chap: string; hid: string } | null = null;
+        for (let i = currentIndex - 1; i >= 0; i--) {
+          const candidate = sortedChapters[i];
           if (
-            preferredGroup &&
-            prevChapterCandidate.group_name.includes(preferredGroup)
+            !preferredGroup ||
+            candidate.group_name?.includes(preferredGroup)
           ) {
-            setPrevChapter({
-              chap: prevChapterCandidate.chap,
-              hid: prevChapterCandidate.hid,
-            });
+            foundPrev = { chap: candidate.chap, hid: candidate.hid };
             break;
-          } else if (prevChapterIndex === currentIndex - 1) {
-            const fallbackPrev = {
-              chap: prevChapterCandidate.chap,
-              hid: prevChapterCandidate.hid,
-            };
-
-            if (prevChapterIndex === 0) {
-              setPrevChapter(fallbackPrev);
-            }
           }
-          prevChapterIndex--;
         }
-
-        if (prevChapterIndex < 0 && currentIndex > 0) {
-          setPrevChapter({
-            chap: sortedChapters[currentIndex - 1].chap,
-            hid: sortedChapters[currentIndex - 1].hid,
-          });
-        } else if (currentIndex === 0) {
-          setPrevChapter(null);
+        // Fallback: chapter sebelumnya tanpa filter grup
+        if (!foundPrev && currentIndex > 0) {
+          const fallback = sortedChapters[currentIndex - 1];
+          foundPrev = { chap: fallback.chap, hid: fallback.hid };
         }
+        setPrevChapter(foundPrev);
 
-        let nextChapterIndex = currentIndex + 1;
-        while (nextChapterIndex < sortedChapters.length) {
-          const nextChapterCandidate = sortedChapters[nextChapterIndex];
-
+        // Cari next chapter
+        let foundNext: { chap: string; hid: string } | null = null;
+        for (let i = currentIndex + 1; i < sortedChapters.length; i++) {
+          const candidate = sortedChapters[i];
           if (
-            preferredGroup &&
-            nextChapterCandidate.group_name.includes(preferredGroup)
+            !preferredGroup ||
+            candidate.group_name?.includes(preferredGroup)
           ) {
-            setNextChapter({
-              chap: nextChapterCandidate.chap,
-              hid: nextChapterCandidate.hid,
-            });
+            foundNext = { chap: candidate.chap, hid: candidate.hid };
             break;
-          } else if (nextChapterIndex === currentIndex + 1) {
-            const fallbackNext = {
-              chap: nextChapterCandidate.chap,
-              hid: nextChapterCandidate.hid,
-            };
-
-            if (nextChapterIndex === sortedChapters.length - 1) {
-              setNextChapter(fallbackNext);
-            }
           }
-
-          nextChapterIndex++;
         }
-
-        if (
-          nextChapterIndex >= sortedChapters.length &&
-          currentIndex < sortedChapters.length - 1
-        ) {
-          setNextChapter({
-            chap: sortedChapters[currentIndex + 1].chap,
-            hid: sortedChapters[currentIndex + 1].hid,
-          });
-        } else if (currentIndex === sortedChapters.length - 1) {
-          setNextChapter(null);
+        // Fallback: chapter berikutnya tanpa filter grup
+        if (!foundNext && currentIndex < sortedChapters.length - 1) {
+          const fallback = sortedChapters[currentIndex + 1];
+          foundNext = { chap: fallback.chap, hid: fallback.hid };
         }
+        setNextChapter(foundNext);
       } catch (err) {
         console.error("Error fetching data:", err);
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -234,6 +207,7 @@ export default function ChapterReader() {
     if (slug && hid) {
       fetchChapterData();
     }
+
     return () => {
       setChapterImages([]);
       setChapterTitle("");
@@ -244,7 +218,9 @@ export default function ChapterReader() {
       setSelectedGroup(null);
       setAvailableGroups([]);
     };
-  }, [slug, hid, baseUrl]);
+    // BUG FIX #3: Hapus `baseUrl` dari dependency array — tidak relevan dan menyebabkan
+    // re-fetch yang tidak perlu jika baseUrl berubah referensi
+  }, [slug, hid]);
 
   useEffect(() => {
     let timeout: NodeJS.Timeout;
@@ -369,7 +345,6 @@ export default function ChapterReader() {
       >
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex gap-2">
-            {/* Home button */}
             <Link href="/">
               <Button variant="ghost" size="icon">
                 <Home className="w-5 h-5" />
@@ -404,14 +379,12 @@ export default function ChapterReader() {
                   <SheetTitle>Chapter List</SheetTitle>
                 </SheetHeader>
                 <div className="py-4">
-                  {/* Current chapter info */}
                   <div className="mb-4 p-3 bg-muted/30 rounded-md">
                     <p className="font-bold">
                       Chapter {chapterTitle.replace("Chapter ", "")}
                     </p>
                   </div>
 
-                  {/* Group filter selector */}
                   {availableGroups.length > 1 && (
                     <div className="mb-4">
                       <p className="text-sm font-medium mb-2">
@@ -441,7 +414,6 @@ export default function ChapterReader() {
                     </div>
                   )}
 
-                  {/* Chapter dropdown */}
                   <div className="mb-4">
                     <p className="text-sm font-medium mb-2">Select Chapter</p>
                     <Select
@@ -467,7 +439,7 @@ export default function ChapterReader() {
                               .sort((a, b) => {
                                 const chapA = parseFloat(a.chap) || 0;
                                 const chapB = parseFloat(b.chap) || 0;
-                                return chapB - chapA; // Descending order (newest first)
+                                return chapB - chapA;
                               })
                               .map((chapter) => (
                                 <SelectItem
@@ -513,9 +485,12 @@ export default function ChapterReader() {
                 <div className="py-4">
                   <div className="mb-6">
                     <p className="text-sm font-medium mb-2">Image Quality</p>
+                    {/* BUG FIX #4: Tipe parameter onValueChange Slider diperbaiki.
+                        Sebelumnya: `value[0]` di-cast sebagai `React.SetStateAction<number>[]`
+                        yang salah — tipe generic React.SetStateAction tidak cocok di sini */}
                     <Slider
                       value={[imageQuality]}
-                      onValueChange={(value: React.SetStateAction<number>[]) =>
+                      onValueChange={(value: number[]) =>
                         setImageQuality(value[0])
                       }
                       min={50}
@@ -562,7 +537,7 @@ export default function ChapterReader() {
             ))}
           </div>
         ) : (
-          <div className="">
+          <div>
             {chapterImages.map((image, index) => (
               <div key={index} className="relative w-full flex justify-center">
                 <Image

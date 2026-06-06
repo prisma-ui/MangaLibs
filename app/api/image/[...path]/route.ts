@@ -3,10 +3,18 @@ import { NextResponse } from 'next/server';
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ path: string[] }> } 
+  context: { params: Promise<{ path: string[] }> }
 ) {
-  const { path } = await context.params; 
+  const { path } = await context.params;
   const MANGA_IMG_URL = process.env.MANGA_IMG_URL;
+
+  // BUG FIX: Validasi env var — tanpa ini akan crash dengan URL invalid jika tidak di-set
+  if (!MANGA_IMG_URL) {
+    return NextResponse.json(
+      { error: 'MANGA_IMG_URL environment variable is not configured' },
+      { status: 500 }
+    );
+  }
 
   const fullPath = Array.isArray(path) ? path.join('/') : path;
   const { searchParams } = new URL(request.url);
