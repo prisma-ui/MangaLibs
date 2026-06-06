@@ -229,7 +229,7 @@ export default function Header() {
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <Book className="w-5 h-5 text-primary" />
-              <span className="text-lg font-bold text-primary">Piginime Manga</span>
+              <span className="text-lg font-bold text-primary">MangaLibs</span>
             </Link>
 
             {/* Desktop Search bar */}
