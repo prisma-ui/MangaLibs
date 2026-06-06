@@ -6,7 +6,7 @@ import Header from "./components/header";
 
 const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
-  title: "MangaLibs",
+  title: "MangaSui",
   description: "Read Manga and Comics online free, update fastest, most full, synthesized with high-quality images, with all manga update daily.",
 };
 

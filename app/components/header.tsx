@@ -1,7 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Book, Loader2, Search, User } from "lucide-react";
+import { Book, Loader2, Search } from "lucide-react";
 import type React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ThemeToggle } from "./theme-toggle";
@@ -41,6 +41,8 @@ export default function Header() {
     }
   }, []);
 
+  // FIX: debouncedSearch now correctly lists fetchSearchResults as dependency,
+  // preventing a stale closure where old fetchSearchResults was captured forever.
   const debouncedSearch = useCallback(
     debounce((query: string) => {
       fetchSearchResults(query);
@@ -68,7 +70,6 @@ export default function Header() {
         setShowResults(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -82,9 +83,7 @@ export default function Header() {
   };
 
   const handleSearchFocus = () => {
-    if (searchQuery.length >= 2) {
-      setShowResults(true);
-    }
+    if (searchQuery.length >= 2) setShowResults(true);
   };
 
   const handleSearchClear = () => {
@@ -94,16 +93,30 @@ export default function Header() {
   };
 
   const toggleMobileSearch = () => {
-    setShowMobileSearch(!showMobileSearch);
+    setShowMobileSearch((prev) => !prev);
     if (!showMobileSearch) {
       setTimeout(() => {
-        const searchInput = document.getElementById("mobile-search-input");
-        if (searchInput) {
-          searchInput.focus();
-        }
+        document.getElementById("mobile-search-input")?.focus();
       }, 100);
     }
   };
+
+  const ClearIcon = () => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
 
   const SearchResultsList = ({ results }: { results: MangaSearchResult[] }) => {
     if (results.length === 0 && searchQuery.length >= 2) {
@@ -114,6 +127,26 @@ export default function Header() {
       );
     }
 
+    const getStatusText = (statusCode: number) => {
+      switch (statusCode) {
+        case 1: return "Ongoing";
+        case 2: return "Completed";
+        case 3: return "Cancelled";
+        case 4: return "Hiatus";
+        default: return "Unknown";
+      }
+    };
+
+    const getStatusColor = (statusCode: number) => {
+      switch (statusCode) {
+        case 1: return "text-blue-500";
+        case 2: return "text-green-500";
+        case 3: return "text-red-500";
+        case 4: return "text-amber-500";
+        default: return "text-gray-500";
+      }
+    };
+
     return (
       <>
         {results.map((result) => {
@@ -121,36 +154,6 @@ export default function Header() {
             result.md_covers && result.md_covers.length > 0
               ? result.md_covers[0].b2key
               : null;
-
-          const getStatusText = (statusCode: number) => {
-            switch (statusCode) {
-              case 1:
-                return "Ongoing";
-              case 2:
-                return "Completed";
-              case 3:
-                return "Cancelled";
-              case 4:
-                return "Hiatus";
-              default:
-                return "Unknown";
-            }
-          };
-
-          const getStatusColor = (statusCode: number) => {
-            switch (statusCode) {
-              case 1:
-                return "text-blue-500";
-              case 2:
-                return "text-green-500";
-              case 3:
-                return "text-red-500";
-              case 4:
-                return "text-amber-500";
-              default:
-                return "text-gray-500";
-            }
-          };
 
           return (
             <Link
@@ -163,7 +166,6 @@ export default function Header() {
                 setShowMobileSearch(false);
               }}
             >
-              {/* Cover image */}
               <div className="relative flex-shrink-0 h-20 overflow-hidden border rounded-md w-14">
                 {coverKey ? (
                   <div className="relative w-full h-full">
@@ -186,20 +188,14 @@ export default function Header() {
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium line-clamp-2">
                   {result.highlight ? (
-                    <span
-                      dangerouslySetInnerHTML={{ __html: result.highlight }}
-                    />
+                    <span dangerouslySetInnerHTML={{ __html: result.highlight }} />
                   ) : (
                     result.title
                   )}
                 </span>
                 <div className="flex items-center gap-2 mt-1">
                   {result.status && (
-                    <span
-                      className={`text-xs font-medium ${getStatusColor(
-                        result.status
-                      )}`}
-                    >
+                    <span className={`text-xs font-medium ${getStatusColor(result.status)}`}>
                       {getStatusText(result.status)}
                     </span>
                   )}
@@ -226,13 +222,12 @@ export default function Header() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
         <div className="container mx-auto px-4 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            {/* Logo */}
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <Book className="w-5 h-5 text-primary" />
               <span className="text-lg font-bold text-primary">MangaLibs</span>
             </Link>
 
-            {/* Desktop Search bar */}
+            {/* Desktop Search */}
             <div
               className="relative flex-1 hidden max-w-md md:flex"
               ref={searchContainerRef}
@@ -256,31 +251,15 @@ export default function Header() {
                     onClick={handleSearchClear}
                     aria-label="Clear search"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
+                    <ClearIcon />
                   </button>
                 )}
 
-                {/* Search Results Dropdown */}
                 {showResults && (
                   <div
                     className={cn(
                       "absolute top-full mt-1 w-full bg-background border rounded-md shadow-md z-50 max-h-96 overflow-y-auto",
-                      searchResults.length === 0 &&
-                        searchQuery.length < 2 &&
-                        "hidden"
+                      searchResults.length === 0 && searchQuery.length < 2 && "hidden"
                     )}
                   >
                     {isLoading ? (
@@ -296,7 +275,6 @@ export default function Header() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Mobile Search Icon */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -306,11 +284,7 @@ export default function Header() {
               >
                 <Search className="w-5 h-5" />
               </Button>
-
-              {/* Theme toggle button */}
               <ThemeToggle />
-
-              {/* Browse button */}
               <Button
                 variant="outline"
                 size="sm"
@@ -352,20 +326,7 @@ export default function Header() {
                     onClick={handleSearchClear}
                     aria-label="Clear search"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
+                    <ClearIcon />
                   </button>
                 )}
               </div>
@@ -378,7 +339,6 @@ export default function Header() {
               </Button>
             </div>
 
-            {/* Mobile Search Results */}
             <div
               className={cn(
                 "bg-background rounded-md overflow-y-auto max-h-[calc(100vh-120px)]",

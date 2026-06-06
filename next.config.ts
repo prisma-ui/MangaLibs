@@ -7,7 +7,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['meo.comick.pictures'],
+    // 'domains' is deprecated - using remotePatterns only
     remotePatterns: [
       {
         protocol: 'https',
